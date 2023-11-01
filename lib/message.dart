@@ -19,6 +19,11 @@ class Message {
 		tags = "${tags}f";
 		data.add(value);
 	}
+	void addInt(int value) {
+		tags = "${tags}i";
+		data.add(value);
+	}
+
 
 	void makePacket() {
 		// encode the data
