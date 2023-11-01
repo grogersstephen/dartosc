@@ -31,7 +31,6 @@ class Message {
 
 		// Append the appropriate zero bytes
 		//     and merge the osc address with comma + osc tags
-
 		packet = [
 			appendZeroBytes(address).codeUnits,
 			appendZeroBytes(",$tags").codeUnits,

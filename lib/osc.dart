@@ -25,14 +25,19 @@ class Conn {
 		return true;
 	}
 
-	Future<bool> initSender() async {
+	Future<bool> initSender(int port) async {
 		// Close sender if one is already open
 		try {
 			sender!.close();
 		} catch(e) {}
 
+		if (port < 0 || port > 65535) {
+			return false; // invalid port number
+		}
+
 		// Assign sender
 		try {
+			localPort = port;
 			sender = await UDP.bind(Endpoint.any(port: Port(localPort)));
 		} catch(e) {
 			return false;
