@@ -33,6 +33,7 @@ class Conn {
       final dataLength = await sender.send(message.packet, _dest);
       if (dataLength == 0) throw Error.safeToString("too short");
     } catch (e) {
+      sender.close();
       rethrow;
     }
   }
