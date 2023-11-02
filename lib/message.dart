@@ -6,7 +6,8 @@ class Message {
   String tags = "";
   List<List<int>> rawdata =
       <List<int>>[]; // each argument will be a list of int
-  List<Object> data = <Object>[]; // each argument decoded
+
+  List<dynamic> data = <Object>[]; // each argument decoded
 
   Message(this.address);
 
