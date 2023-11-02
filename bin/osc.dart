@@ -23,13 +23,9 @@ void main() async {
 
   final stream = conn.receive(Duration(seconds: 3));
 
-  try {
-    stream.listen((event) {
-      print("data: ${event?.data}");
-    });
-  } catch (e) {
-    print("$e");
+  await for (final event in stream) {
+    print("data: ${event?.data}");
   }
 
-  // conn.close();
+  conn.close();
 }

@@ -4,8 +4,8 @@ class Message {
   List<int> packet = [];
   String address;
   String tags = "";
-  List<List<int>> rawdata =
-      <List<int>>[]; // each argument will be a list of int
+  List<Uint8List> rawdata =
+      <Uint8List>[]; // each argument will be a list of int
 
   List<dynamic> data = <Object>[]; // each argument decoded
 
@@ -85,18 +85,18 @@ class Message {
       switch (tags[i]) {
         case "f":
           // next four bytes
-          rawdata.add(dataS.substring(0, 4).codeUnits);
+          rawdata.add(Uint8List.fromList(dataS.substring(0, 4).codeUnits));
           dataS = dataS.substring(4);
           break;
         case "i":
           // next four bytes
-          rawdata.add(dataS.substring(0, 4).codeUnits);
+          rawdata.add(Uint8List.fromList(dataS.substring(0, 4).codeUnits));
           dataS = dataS.substring(4);
           break;
         case "s":
           // portion before the next zerobyte
           final stringToAdd = dataS.split("\u0000")[0];
-          rawdata.add(stringToAdd.codeUnits);
+          rawdata.add(Uint8List.fromList(stringToAdd.codeUnits));
           dataS = dataS.substring(stringToAdd.length + zerosToAdd(stringToAdd));
           break;
       }
@@ -113,9 +113,9 @@ class Message {
     for (int i = 0; i < tags.length; i++) {
       switch (tags[i]) {
         case "f":
-          data.add(decodeFloat32(rawdata[i]));
+          data.add(decodeFloat32(rawdata[i] as Uint8List));
         case "i":
-          data.add(decodeInt32(rawdata[i]));
+          data.add(decodeInt32(rawdata[i] as Uint8List));
         case "s":
           data.add(String.fromCharCodes(rawdata[i]));
       }
@@ -126,17 +126,17 @@ class Message {
 
   void encode() {
     // clear anything in raw data
-    rawdata = <List<int>>[];
+    rawdata = <Uint8List>[];
     // iterate according to tags
     for (int i = 0; i < tags.length; i++) {
-      List<int> byt;
+      Uint8List byt;
       switch (tags[i]) {
         case "f": // float32
           if (data[i] is double) {
             byt = _encodeFloat32(data[i] as double);
           } else {
             // add placeholding 4 zero bytes
-            byt = ("\u0000" * 4).codeUnits;
+            byt = Uint8List.fromList(("\u0000" * 4).codeUnits);
           }
           rawdata.add(byt);
         case "i": // int32
@@ -144,11 +144,11 @@ class Message {
             byt = _encodeInt32(data[i] as int);
           } else {
             // add placeholding 4 zero bytes
-            byt = ("\u0000" * 4).codeUnits;
+            byt = Uint8List.fromList(("\u0000" * 4).codeUnits);
           }
           rawdata.add(byt);
         case "s": // string
-          byt = data[i].toString().codeUnits;
+          byt = Uint8List.fromList(data[i].toString().codeUnits);
           rawdata.add(byt);
       }
     }
@@ -158,7 +158,7 @@ class Message {
     // clears the properties of the message except the packet
     address = "";
     tags = "";
-    rawdata = <List<int>>[];
+    rawdata = <Uint8List>[];
     return;
   }
 }
@@ -171,15 +171,15 @@ int zerosToAdd(String s) {
   return 4 - (s.length % 4);
 }
 
-ByteData getByteData(List<int> data) {
+ByteData getByteData(Uint8List data) {
   return ByteData.sublistView(Uint8List.fromList(data));
 }
 
-double decodeFloat32(List<int> data) {
+double decodeFloat32(Uint8List data) {
   return getByteData(data).getFloat32(0);
 }
 
-int decodeInt32(List<int> data) {
+int decodeInt32(Uint8List data) {
   return getByteData(data).getInt32(0);
 }
 
