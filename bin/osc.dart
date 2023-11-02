@@ -1,12 +1,11 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:osc/osc.dart';
 import 'package:osc/message.dart';
 
 void main() async {
   print("start");
   final conn = await Conn.initUDP(remoteHost: "45.56.112.149");
-  var msg = Message("/ch/01/mix/fader")..addFloat(0.8);
+  var msg = Message("/info");
 
   print("create messsage");
   try {
