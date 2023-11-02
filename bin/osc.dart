@@ -4,10 +4,9 @@ import 'package:osc/osc.dart';
 import 'package:osc/message.dart';
 
 void main() async {
-  var conn = Conn(remoteHost: "45.56.112.149");
+  final conn = Conn(remoteHost: "45.56.112.149");
 
-  var msg = Message("/ch/01/mix/fader");
-  msg.addFloat(.29);
+  var msg = Message("/ch/01/mix/fader")..addFloat(.29);
 
   try {
     await conn.send(msg);

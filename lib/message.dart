@@ -12,11 +12,9 @@ class Message {
   Message(this.address);
 
   factory Message.parse(Uint8List data) {
-    final msg = Message("")
+    return Message("")
       ..data = data
       ..parse();
-
-    return msg;
   }
 
   void addString(String s) {
@@ -29,13 +27,17 @@ class Message {
     data.add(value);
   }
 
+  void addInt(int value) {
+    tags = "${tags}i";
+    data.add(value);
+  }
+
   void makePacket() {
     // encode the data
     encode();
 
     // Append the appropriate zero bytes
     //     and merge the osc address with comma + osc tags
-
     packet = [
       appendZeroBytes(address).codeUnits,
       appendZeroBytes(",$tags").codeUnits,
