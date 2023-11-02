@@ -15,7 +15,7 @@ void main() async {
     return;
   }
 
-  final stream = conn.recieve(Duration(seconds: 1));
+  final stream = conn.receive(Duration(seconds: 1));
 
   // await for (final value in stream) {
   //   Message reply = Message.parse(value?.data ?? Uint8List(0));

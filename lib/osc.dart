@@ -25,7 +25,7 @@ class Conn {
     _sender = await UDP.bind(Endpoint.any(port: Port(_localPort)));
   }
 
-  Stream<Datagram?> recieve(Duration timeout) {
+  Stream<Datagram?> receive(Duration timeout) {
     return _sender.asStream(timeout: timeout);
   }
 
