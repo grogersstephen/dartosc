@@ -3,11 +3,14 @@ import 'package:osc/osc.dart';
 import 'package:osc/message.dart';
 
 void main() async {
-  print("start");
+  // print("start");
   final conn = await Conn.initUDP(remoteHost: "45.56.112.149");
   var msg = Message("/info");
 
+  msg.makePacket();
+
   print("create messsage");
+
   try {
     await conn.send(msg);
   } catch (e) {
@@ -27,14 +30,6 @@ void main() async {
   } catch (e) {
     print("$e");
   }
-  // await for (final value in stream) {
-  //   print("waiting to read");
-  //   Message reply = Message.parse(value?.data ?? Uint8List(0));
 
-  //   print("tags: ${reply.tags}");
-  //   print("reply: ${reply.data}");
-  //   break;
-  // }
-
-  conn.close();
+  // conn.close();
 }

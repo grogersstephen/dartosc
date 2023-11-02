@@ -32,11 +32,13 @@ class Conn {
     return Conn.withUDP(dest: dest, sender: sender);
   }
 
+  get sender => _sender;
+
   Stream<Datagram?> receive(Duration timeout) {
     try {
       return _sender.asStream(timeout: timeout);
     } catch (e) {
-      print("$e");
+      print("receive: $e");
       rethrow;
     }
   }
@@ -52,8 +54,10 @@ class Conn {
     // Send the data
     try {
       final dataLength = await _sender.send(message.packet, _dest);
+      print("dataLength: $dataLength");
       if (dataLength == 0) throw Error.safeToString("too short");
     } catch (e) {
+      print("send: $e");
       rethrow;
     }
   }
