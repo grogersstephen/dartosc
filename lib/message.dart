@@ -130,21 +130,22 @@ class Message {
     // iterate according to tags
     for (int i = 0; i < tags.length; i++) {
       List<int> byt;
-      bool ok;
       switch (tags[i]) {
         case "f": // float32
-          (byt, ok) = encodeFloat32(data[i]);
-          if (!ok) {
+          if (data[i] is double) {
+            byt = _encodeFloat32(data[i] as double);
+          } else {
             // add placeholding 4 zero bytes
             byt = ("\u0000" * 4).codeUnits;
           }
           rawdata.add(byt);
         case "i": // int32
-          byt = _encodeInt32(data[i] as int);
-          // if (!ok) {
-          //   // add placeholding 4 zero bytes
-          //   byt = ("\u0000" * 4).codeUnits;
-          // }
+          if (data[i] is int) {
+            byt = _encodeInt32(data[i] as int);
+          } else {
+            // add placeholding 4 zero bytes
+            byt = ("\u0000" * 4).codeUnits;
+          }
           rawdata.add(byt);
         case "s": // string
           byt = data[i].toString().codeUnits;
@@ -183,26 +184,12 @@ int decodeInt32(List<int> data) {
 }
 
 Uint8List _encodeInt32(int value) {
-  // try {
-  //   x = value as int;
-  // } catch (e) {
-  //   stdout.write("cannot parse int");
-  //   return (<int>[], false);
-  // }
-
   var bdata = ByteData(4)..setInt32(0, value);
   return bdata.buffer.asUint8List(0);
 }
 
-(List<int>, bool) encodeFloat32(Object value) {
-  double x = -1;
-  try {
-    x = value as double;
-  } catch (e) {
-    stdout.write("cannot parse double");
-    return (<int>[], false);
-  }
+Uint8List _encodeFloat32(double value) {
   var bdata = ByteData(4);
-  bdata.setFloat32(0, x);
-  return (bdata.buffer.asUint8List(0), true);
+  bdata.setFloat32(0, value);
+  return bdata.buffer.asUint8List(0);
 }
