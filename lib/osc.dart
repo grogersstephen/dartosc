@@ -5,37 +5,50 @@ import 'dart:io';
 import 'package:udp/udp.dart';
 import 'message.dart';
 
-class Conn {
-  late final String _remoteHost;
-  late final int _remotePort;
-  late final int _localPort;
-  late final Endpoint _dest;
-  late UDP _sender;
+// abstract interface class Sender {
+//   Future<int> send(List<int> data, Endpoint remoteEndpoint);
+//   Stream<Datagram?> asStream({Duration? timeout});
+//   close();
+// }
 
-  Conn({required remoteHost, remotePort = 10023, localPort = 10023})
-      : _remoteHost = remoteHost,
-        _remotePort = remotePort,
-        _localPort = localPort {
-    _init();
+class Conn {
+  late final Endpoint _dest;
+  late final UDP _sender;
+
+  Conn({required Endpoint dest, required UDP sender})
+      : _dest = dest,
+        _sender = sender;
+
+  factory Conn.withUDP({required Endpoint dest, required UDP sender}) {
+    return Conn(dest: dest, sender: sender);
   }
 
-  Future _init() async {
-    _dest = Endpoint.multicast(InternetAddress(_remoteHost),
-        port: Port(_remotePort));
-    _sender = await UDP.bind(Endpoint.any(port: Port(_localPort)));
+  static Future<Conn> initUDP(
+      {required remoteHost, remotePort = 10023, localPort = 10023}) async {
+    final dest =
+        Endpoint.unicast(InternetAddress(remoteHost), port: Port(remotePort));
+    final sender = await UDP.bind(Endpoint.any(port: Port(localPort)));
+
+    return Conn.withUDP(dest: dest, sender: sender);
   }
 
   Stream<Datagram?> receive(Duration timeout) {
-    return _sender.asStream(timeout: timeout);
+    try {
+      return _sender.asStream(timeout: timeout);
+    } catch (e) {
+      print("$e");
+      rethrow;
+    }
   }
 
   void close() {
     _sender.close();
   }
 
-  Future<void> send(Message message) async {
+  Future send(Message message) async {
     // Make the packet from the message
     message.makePacket();
+
     // Send the data
     try {
       final dataLength = await _sender.send(message.packet, _dest);
