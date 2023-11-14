@@ -32,6 +32,7 @@ class Conn {
 				var data = event?.data ?? Uint8List(0);
 				if (data.isEmpty) throw Exception("empty packet");
 				msg = Message.fromPacket(data);
+				break; // once data is received, break out of the loop
 			}
 		} catch(e) {
 			rethrow;
