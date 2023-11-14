@@ -88,7 +88,7 @@ class Message {
 	}
 
 	void makePacket() {
-		_packet = _makePacket();
+		packet = _makePacket();
 	}
 
 	Uint8List _makePacket() {
