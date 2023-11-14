@@ -9,25 +9,23 @@ import 'dart:typed_data';
 class Conn {
 	final Endpoint _dest;
 	final UDP _sender;
-	final UDP _receiver;
 
-	Conn({required Endpoint dest, required UDP sender, required UDP receiver})
+	Conn({required Endpoint dest, required UDP sender})
 			: _dest = dest,
-			_sender = sender,
-			_receiver = receiver;
+			_sender = sender;
 
 	static Future<Conn> initUDP({required remoteHost, int remotePort = 10023, int localPort = 10023}) async {
 		final dest = Endpoint.unicast(InternetAddress(remoteHost), port: Port(remotePort));
 		final sender = await UDP.bind(Endpoint.any(port: Port(localPort)));
-		final receiver = await UDP.bind(Endpoint.any(port: Port(localPort)));
-		return Conn(dest: dest, sender: sender, receiver: receiver);
+		return Conn(dest: dest, sender: sender);
 	}
 
 	get sender => _sender;
-	get receiver => _receiver;
 	get dest => _dest;
 
 	Future<Message> receive(Duration timeout) async {
+		// Create a disposable receiver using the same port as the sender's port
+		final _receiver = await UDP.bind(Endpoint.any(port: Port(sender.local.port)));
 		var msg = Message();
 		try {
 			await for (final event in _receiver.asStream(timeout: timeout)) {
@@ -38,16 +36,18 @@ class Conn {
 		} catch(e) {
 			rethrow;
 		}
+		// Close the receiver
+		_receiver.close();
 		return msg;
 	}
 
-	Future send(Message message) async {
+	Future<int> send(Message message) async {
 		// Make the packet from the message
 		message.makePacket();
 
 		// Send the data
 		try {
-			await _sender.send(message.packet, _dest);
+			return await _sender.send(message.packet, _dest);
 		} catch(e) {
 			rethrow;
 		}

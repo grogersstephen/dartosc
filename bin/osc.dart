@@ -10,11 +10,13 @@ void main() async {
 
   print("Sent message:$msg");
 
+  int bytesSent = -1;
   try {
-	  await conn.send(msg);
+	  bytesSent = await conn.send(msg);
   } catch(e) {
 	  stdout.write("could not send msg '$msg': $e");
   }
+  stdout.write("sent $bytesSent bytes");
 
   Message reply = await conn.receive(Duration(seconds:1));
 
