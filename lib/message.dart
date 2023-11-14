@@ -63,15 +63,15 @@ class Message {
 
 	@override
 	String toString() {
-		var out = StringBuffer();
+		var sb = StringBuffer();
 		for (final r in packet) {
 			if (r == 0) {
-				out.write("~");
+				sb.write("~");
 				continue;
 			}
-			out.writeCharCode(r);
+			sb.writeCharCode(r);
 		}
-		return out.toString();
+		return sb.toString();
 	}
 
 	void addString(String s) {

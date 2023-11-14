@@ -5,7 +5,8 @@ import 'package:osc/message.dart';
 void main() async {
   final conn = await Conn.initUDP(remoteHost: "45.56.112.149");
 
-  var msg = Message("/info");
+  var msg = Message("/ch/21/mix/fader");
+  //msg.addFloat(.18);
 
   print("Sent message:$msg}");
 
@@ -21,7 +22,7 @@ void main() async {
 
   print("Received args:");
   for (final arg in reply.arguments) {
-	  print(arg);
+	  print("type:${arg.runtimeType}\narg:$arg");
   }
 
   conn.sender.close();
