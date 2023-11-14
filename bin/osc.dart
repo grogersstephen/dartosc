@@ -1,31 +1,27 @@
-import 'dart:io';
 import 'package:osc/osc.dart';
 import 'package:osc/message.dart';
 
 
 void main() async {
-  bool ok;
-  Message reply;
-  var conn = Conn("45.56.112.149");
-  await conn.initSender(10023);
+  var conn = await Conn.initUDP(remoteHost: "45.56.112.149");
 
-  var msg = Message("/ch/01/mix/fader");
-  msg.addFloat(.29);
+  var msg = Message("/ch/03/mix/fader");
+  //msg.addFloat(.22);
 
-  ok = await conn.send(msg);
-  if (!ok) {
-	  stdout.write("could not send msg");
-	  return;
+  print("Sent message:$msg}");
+
+  await conn.send(msg);
+
+  Message reply = await conn.receive(Duration(seconds:1));
+
+  print("Received message:$reply");
+
+  print("Received args:");
+  for (final arg in reply.arguments) {
+	  print(arg);
   }
 
-  (reply, ok) = await conn.receive(Duration(seconds:1));
-
-  reply.parse();
-
-  print("tags: ${reply.tags}");
-  print("reply: ${reply.data}");
-
-  conn.sender!.close();
+  conn.sender.close();
 }
 
 

@@ -2,76 +2,51 @@ import 'dart:core';
 import 'dart:io';
 import 'package:udp/udp.dart';
 import 'message.dart';
+import 'dart:typed_data';
 
 class Conn {
-	String remoteHost;
-	int remotePort = 10023;
-	int localPort = 10023;
-	UDP? sender;
-	Endpoint? dest;
+	final Endpoint _dest;
+	final UDP _sender;
 
-	Conn(this.remoteHost) {
-		if (!initDest()) {
-			stdout.write("unable to make remote endpoint");
-		}
+	Conn({required Endpoint dest, required UDP sender})
+			: _dest = dest,
+			_sender = sender;
+
+	static Future<Conn> initUDP({required remoteHost, int remotePort = 10023, int localPort = 10023}) async {
+		final dest = Endpoint.unicast(InternetAddress(remoteHost), port: Port(remotePort));
+		final sender = await UDP.bind(Endpoint.any(port: Port(localPort)));
+		return Conn(dest: dest, sender: sender);
 	}
 
-	bool initDest() {
-		try {
-			dest = Endpoint.unicast(InternetAddress(remoteHost), port: Port(remotePort));
-		} catch(e) {
-			return false;
-		}
-		return true;
-	}
+	get sender => _sender;
 
-	Future<bool> initSender(int port) async {
-		// Close sender if one is already open
+	Future<Message> receive(Duration timeout) async {
+		var msg = Message();
 		try {
-			sender!.close();
-		} catch(e) {}
-
-		if (port < 0 || port > 65535) {
-			return false; // invalid port number
-		}
-
-		// Assign sender
-		try {
-			localPort = port;
-			sender = await UDP.bind(Endpoint.any(port: Port(localPort)));
-		} catch(e) {
-			return false;
-		}
-		return true;
-	}
-
-	Future<bool> send(Message message) async {
-		// Make the packet from the message
-		message.makePacket();
-		// Send the data
-		try {
-			final dataLength = await sender!.send(message.packet, dest!);
-			if (dataLength < 1) {
-				return false;
+			await for (final event in _sender.asStream(timeout: timeout)) {
+				var data = event?.data ?? Uint8List(0);
+				if (data.isEmpty) throw Exception("empty packet");
+				msg = Message.fromPacket(data);
 			}
 		} catch(e) {
-			return false;
+			rethrow;
 		}
-		return true;
+		return msg;
+	}
+	
+	Future send(Message message) async {
+		// Make the packet from the message
+		message.makePacket();
+
+		// Send the data
+		try {
+			await _sender.send(message.packet, _dest);
+		} catch(e) {
+			rethrow;
+		}
 	}
 
-	Future<(Message, bool)> receive(Duration timeout) async {
-		var msg = Message("");
-		bool ok = false;
-		try {
-		sender!.asStream(timeout: timeout).listen((datagram) {
-			msg.packet = datagram!.data;
-			ok = true;
-		});
-		} catch(e) {
-			return (msg, ok);
-		}
-  	    await Future.delayed(timeout);
-		return (msg, ok);
+	void close() {
+		_sender.close();
 	}
 }
