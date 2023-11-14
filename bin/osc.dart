@@ -1,31 +1,27 @@
-import 'dart:io';
 import 'package:osc/osc.dart';
 import 'package:osc/message.dart';
 
 void main() async {
-  // print("start");
   final conn = await Conn.initUDP(remoteHost: "45.56.112.149");
+
   var msg = Message("/info");
 
-  msg.makePacket();
-
-  print("create messsage");
+  print("Sent message:$msg}");
 
   try {
-    await conn.send(msg);
-  } catch (e) {
-    stdout.write(
-      "could not send msg: $e",
-    );
-    conn.close();
-    return;
+	  await conn.send(msg);
+  } catch(e) {
+	  stdout.write("could not send msg '$msg': $e");
   }
 
-  final stream = conn.receive(Duration(seconds: 3));
+  Message reply = await conn.receive(Duration(seconds:1));
 
-  await for (final event in stream) {
-    print("data: ${event?.data}");
+  print("Received message:$reply");
+
+  print("Received args:");
+  for (final arg in reply.arguments) {
+	  print(arg);
   }
 
-  conn.close();
+  conn.sender.close();
 }

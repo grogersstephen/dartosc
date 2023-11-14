@@ -1,166 +1,266 @@
 import 'dart:typed_data';
+import 'package:typed_data/typed_buffers.dart';
 
 class Message {
-  List<int> packet = [];
-  String address;
-  String tags = "";
-  List<Uint8List> rawdata =
-      <Uint8List>[]; // each argument will be a list of int
+	Uint8List _packet;
+	String _address;
+	String _tags;
+	List<dynamic> _arguments;
 
-  List<dynamic> data = <Object>[]; // each argument decoded
+	Message([address = ""])
+			: _packet = Uint8List(0),
+			  _address = address,
+			  _tags = "",
+			  _arguments = <dynamic>[] {
+		_packet = _makePacket();
+	}
 
-  Message(this.address);
+	Message.fromPacket(Uint8List packet)
+			: _packet = packet,
+			  _address = "",
+			  _tags = "",
+			  _arguments = <dynamic>[] {
+		_parse();
+	}
 
-  factory Message.parse(Uint8List data) {
-    return Message("")
-      ..data = data
-      ..parse();
-  }
+	// List of characters not allowed in an osc address
+	//     The delimiter of containers in an address is the '/' with ascii code 47
+	static Uint8List forbiddenCharacters = Uint8List.fromList([32, 35, 42, 44, 63, 91, 93, 123, 125]); // [space]#*,?[]{}
+	// List of characters allowed in osc tags
+	static Uint8List tagAllowedCharacters = Uint8List.fromList([102,105,115]); // fis
+
+	Uint8List get packet => _packet;
+	String get address => _address;
+	String get tags => _tags;
+	List<dynamic> get arguments => _arguments;
+
+	set address(String address) {
+		// data validation
+		if (address[0] != "/") {
+		  throw Exception("osc addresses must begin with root /");
+		}
+		_address = address;
+	}
+	set packet(Uint8List packet) {
+		_packet = packet;
+	}
+	set tags(String tags) {
+		// tags will be a string of 'i', 'f', and 's' representing the osc arguments which follow
+		// tags will NOT contain a comma here
+		// data validation
+		// If the first character is a comma, remove it
+		if (tags.startsWith(",")) {
+		  tags = tags.substring(1);
+		}
+		// Make sure only allowed characters are in the list of tags
+		for (final r in tags.runes) {
+			if (!tagAllowedCharacters.contains(r)) {
+				throw Exception("not a valid tag: '${String.fromCharCode(r)}'");
+			}
+		}
+		_tags = tags;
+	}
+
+	@override
+	String toString() {
+		var out = StringBuffer();
+		for (final r in packet) {
+			if (r == 0) {
+				out.write("~");
+				continue;
+			}
+			out.writeCharCode(r);
+		}
+		return out.toString();
+	}
+
+	void addString(String s) {
+		tags = "${tags}s";
+		_arguments.add(s);
+	}
+	void addFloat(double value) {
+		tags = "${tags}f";
+		_arguments.add(value);
+	}
+	void addInt(int value) {
+		tags = "${tags}i";
+		_arguments.add(value);
+	}
 
   void addString(String s) {
     tags = "${tags}s";
     data.add(s);
   }
 
-  void addFloat(double value) {
-    tags = "${tags}f";
-    data.add(value);
-  }
+	void makePacket() {
+		_packet = _makePacket();
+	}
 
-  void addInt(int value) {
-    tags = "${tags}i";
-    data.add(value);
-  }
+	Uint8List _makePacket() {
+		/// Make the packet from the given osc address, tags, and arguments
+		var b = BytesBuilder();
 
-  void makePacket() {
-    // encode the data
-    encode();
+		// Append the appropriate zero bytes to the osc address
+		//     before writing it to the buffer
+		b.add(Uint8List.fromList(appendZeroBytes(address).codeUnits));
 
-    // Append the appropriate zero bytes
-    //     and merge the osc address with comma + osc tags
-    packet = [
-      appendZeroBytes(address).codeUnits,
-      appendZeroBytes(",$tags").codeUnits,
-      rawdata.expand((x) => x).toList(),
-    ].expand((x) => x).toList();
-  }
+		// Prepend a comma to the osc tags
+		//    and append the appropriate count of zero bytes
+		//    before writing them to the buffer
+		b.add(Uint8List.fromList(appendZeroBytes(",$tags").codeUnits));
 
-  void parse() {
-    // Convert packet to string to work with it
-    var packetS = String.fromCharCodes(packet);
+		// Encode the arguments before writing them to the buffer
+		b.add(encodeArguments());
+		return b.toBytes();
+	}
 
-    // clear the other properties first
-    clearProperties();
+	void _parse() {
+		// Clone to a new packet to work with it
+		Uint8Buffer packetB = Uint8Buffer(0);
+		packetB.addAll(packet);
 
-    // the address will be the part leading the first zero byte
-    address = packetS.split("\u0000")[0];
+		//     the osc message must begin with '/'
+		if (packetB.first != '/'.codeUnitAt(0)) {
+			throw Exception("osc address must begin with '/'");
+		}
+		
+		// If there are no zero bytes, throw error
+		if (!packetB.contains(0)) throw Exception("osc address not terminated by zero byte");
 
-    // find the comma; the tags will follow
-    final commasplit = packetS.split(",");
-    if (commasplit.length < 2) {
-      // if there is no comma
-      return; // return only saving into our address field
-    }
+		// The osc address will be the part leading the first zero byte
+		final String addressToWrite = String.fromCharCodes(packetB.sublist(0, packetB.indexOf(0)));
+		// data validation
+		for (final r in addressToWrite.runes) {
+			if (forbiddenCharacters.contains(r)) {
+				throw Exception("osc address contains forbidden character");
+			}
+		}
 
-    // This will return the sub string trailing the first comma
-    String aftercomma = commasplit.sublist(1).join();
+		// write address
+		address = addressToWrite;
 
-    // This will split the aftercomma string by zero byte delimiters
-    final zerosplit = aftercomma.split("\u0000");
+		// address + zeros length
+		final int addressLength = appendZeroBytes(address).length;
 
-    // if there were no zero bytes following the tag structure
-    //     the message is not formatted properly
-    if (zerosplit.length < 2) {
-      return; // return without writing the tags
-    }
+		// if packetB.length only contains an address, return, writing only to the address property
+		if (packetB.length == addressLength) return;
 
-    // assign the tags to the portion between comma and zero byte NOT inclusive
-    tags = zerosplit[0];
+		// if the osc address is not followed by the appropriate count of zero bytes, throw error
+		//     the address will still be written
+		if (packetB.length < addressLength) {
+			throw Exception("osc address is not correctly terminated");
+		}
 
-    // get the data after the tag portion
-    String dataS = aftercomma.substring(tags.length + zerosToAdd(",$tags"));
+		// Remove the address and trailing zeros
+		packetB.removeRange(0, addressLength);
 
-    //for (var t in tags.runes) {
-    for (int i = 0; i < tags.length; i++) {
-      switch (tags[i]) {
-        case "f":
-          // next four bytes
-          rawdata.add(Uint8List.fromList(dataS.substring(0, 4).codeUnits));
-          dataS = dataS.substring(4);
-          break;
-        case "i":
-          // next four bytes
-          rawdata.add(Uint8List.fromList(dataS.substring(0, 4).codeUnits));
-          dataS = dataS.substring(4);
-          break;
-        case "s":
-          // portion before the next zerobyte
-          final stringToAdd = dataS.split("\u0000")[0];
-          rawdata.add(Uint8List.fromList(stringToAdd.codeUnits));
-          dataS = dataS.substring(stringToAdd.length + zerosToAdd(stringToAdd));
-          break;
-      }
-    }
+		// If there is no comma, return only writing to the address property
+		if (packetB.first != ",".codeUnitAt(0)) return;
+		// Remove the comma
+		packetB.removeAt(0);
 
-    //decode
-    decode();
-  }
+		// If there are no zero bytes, throw error
+		if (!packetB.contains(0)) throw Exception("osc address not terminated by zero byte");
 
-  void decode() {
-    // clear anything in data
-    data = <Object>[];
+		// the tags will be the portion before the first zero byte
+		final String tagsToWrite = String.fromCharCodes(packetB.sublist(0, packetB.indexOf(0)));
+		// data validation
+		final invalidChars = <int>[];
+		for (final r in tagsToWrite.runes) {
+			if (!tagAllowedCharacters.contains(r)) {
+				invalidChars.add(r);
+			}
+		}
+		if (invalidChars.isNotEmpty) {
+			throw Exception("invalid characters: '${String.fromCharCodes(invalidChars)}' in osc tags");
+		}
+		tags = tagsToWrite;
 
-    for (int i = 0; i < tags.length; i++) {
-      switch (tags[i]) {
-        case "f":
-          data.add(decodeFloat32(rawdata[i] as Uint8List));
-        case "i":
-          data.add(decodeInt32(rawdata[i] as Uint8List));
-        case "s":
-          data.add(String.fromCharCodes(rawdata[i]));
-      }
-    }
+		// tags + zeros length
+		// the comma has already been removed, so 1 must be subtracted from the tags portion
+		final int tagsLength = appendZeroBytes(",$tags").length - 1;
 
-    return;
-  }
+		// if the osc tags is not followed by appropriate count of zero bytes, throw error
+		//     the tags will still be written
+		if (packetB.length < tagsLength) {
+			throw Exception("osc tags is not correctly terminated");
+		}
 
-  void encode() {
-    // clear anything in raw data
-    rawdata = <Uint8List>[];
-    // iterate according to tags
-    for (int i = 0; i < tags.length; i++) {
-      Uint8List byt;
-      switch (tags[i]) {
-        case "f": // float32
-          if (data[i] is double) {
-            byt = _encodeFloat32(data[i] as double);
-          } else {
-            // add placeholding 4 zero bytes
-            byt = Uint8List.fromList(("\u0000" * 4).codeUnits);
-          }
-          rawdata.add(byt);
-        case "i": // int32
-          if (data[i] is int) {
-            byt = _encodeInt32(data[i] as int);
-          } else {
-            // add placeholding 4 zero bytes
-            byt = Uint8List.fromList(("\u0000" * 4).codeUnits);
-          }
-          rawdata.add(byt);
-        case "s": // string
-          byt = Uint8List.fromList(data[i].toString().codeUnits);
-          rawdata.add(byt);
-      }
-    }
-  }
+		// Remove the tags and trailing zeros
+		packetB.removeRange(0, tagsLength);
 
-  void clearProperties() {
-    // clears the properties of the message except the packet
-    address = "";
-    tags = "";
-    rawdata = <Uint8List>[];
-    return;
-  }
+		for (int t = 0; t < tags.length; t++) {
+			// If there's not enough bytes, throw error
+			if (packetB.length < 4) {
+				throw Exception("end of packet");
+			}
+			switch (tags[t]) {
+				case "f":
+					// read next four bytes
+					_arguments.add(decodeFloat32(Uint8List.fromList(packetB.sublist(0, 4))));
+					// Remove bytes from packet
+					packetB.removeRange(0, 4);
+					break;
+				case "i":
+					// read next four bytes
+					_arguments.add(decodeInt32(Uint8List.fromList(packetB.sublist(0, 4))));
+					// Remove bytes from packet
+					packetB.removeRange(0, 4);
+					break;
+				case "s":
+					// read portion before the next zerobyte
+					//     ensure the string is followed by a zero byte
+					// if no zero byte is found, throw exception
+					if (!packetB.contains(0)) {
+						throw Exception("string osc argument is not correctly terminated");
+					}
+					final stringToAdd = String.fromCharCodes(packetB.sublist(0, packetB.indexOf(0)));
+					_arguments.add(stringToAdd);
+					
+					// If the length of the string + zero bytes is gt than the remaining packet lenth,
+					//     throw error, but the argument will still be written
+					final int stringLength = appendZeroBytes(stringToAdd).length;
+					if (packetB.length < stringLength) {
+						throw Exception("string osc argument is not correctly terminated");
+					}
+					// Remove string and trailing zeros from packetB
+					packetB.removeRange(0, stringLength);
+					break;
+			}
+		}
+	}
+
+	Uint8List encodeArguments() {
+		var argBytes = BytesBuilder();
+		// iterate according to arguments
+		for (int i = 0; i < _arguments.length; i++) {
+			// If the argument is a string, append the appropriate zero bytes, convert to List<int> and add to argBytes buffer
+			if (arguments[i] is String) {
+				argBytes.add(appendZeroBytes(arguments[i].toString()).codeUnits);
+				continue;
+			}
+			if (arguments[i] is int) {
+				// If the argument is an int, convert to four bytes representing an int32 and add those bytes to argBytes buffer
+				try {
+					argBytes.add(encodeInt32(arguments[i]));
+				} catch(e) {
+					// if conversion fails, add 4 dummy bytes
+					argBytes.add(Uint8List(4));
+				}
+				continue;
+			}
+			if (arguments[i] is double) {
+				// If the argument is an double, convert to four bytes representing an float32 and add those bytes to argBytes buffer
+				try {
+					argBytes.add(encodeFloat32(arguments[i]));
+				} catch(e) {
+					// if conversion fails, add 4 dummy bytes
+					argBytes.add(Uint8List(4));
+				}
+			}
+		}
+		return argBytes.toBytes();
+	}
 }
 
 String appendZeroBytes(String s) {
@@ -171,25 +271,22 @@ int zerosToAdd(String s) {
   return 4 - (s.length % 4);
 }
 
-ByteData getByteData(Uint8List data) {
-  return ByteData.sublistView(Uint8List.fromList(data));
-}
-
 double decodeFloat32(Uint8List data) {
-  return getByteData(data).getFloat32(0);
+	return ByteData.sublistView(data).getFloat32(0);
 }
 
 int decodeInt32(Uint8List data) {
-  return getByteData(data).getInt32(0);
+	return ByteData.sublistView(data).getInt32(0);
 }
 
-Uint8List _encodeInt32(int value) {
-  var bdata = ByteData(4)..setInt32(0, value);
-  return bdata.buffer.asUint8List(0);
+Uint8List encodeInt32(int value) {
+	var bdata = ByteData(4);
+	bdata.setInt32(0, value);
+	return bdata.buffer.asUint8List(0);
 }
 
-Uint8List _encodeFloat32(double value) {
-  var bdata = ByteData(4);
-  bdata.setFloat32(0, value);
-  return bdata.buffer.asUint8List(0);
+Uint8List encodeFloat32(double value) {
+	var bdata = ByteData(4);
+	bdata.setFloat32(0, value);
+	return bdata.buffer.asUint8List(0);
 }
