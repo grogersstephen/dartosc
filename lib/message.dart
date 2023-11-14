@@ -87,11 +87,6 @@ class Message {
 		_arguments.add(value);
 	}
 
-  void addString(String s) {
-    tags = "${tags}s";
-    data.add(s);
-  }
-
 	void makePacket() {
 		_packet = _makePacket();
 	}
