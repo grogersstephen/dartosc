@@ -5,10 +5,10 @@ import 'package:osc/message.dart';
 void main() async {
   final conn = await Conn.initUDP(remoteHost: "45.56.112.149");
 
-  var msg = Message("/ch/21/mix/fader");
+  var msg = Message("/ch/01/config/name");
   //msg.addFloat(.18);
 
-  print("Sent message:$msg}");
+  print("Sent message:$msg");
 
   try {
 	  await conn.send(msg);

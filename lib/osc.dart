@@ -21,6 +21,7 @@ class Conn {
 	}
 
 	get sender => _sender;
+	get dest => _dest;
 
 	Future<Message> receive(Duration timeout) async {
 		var msg = Message();
