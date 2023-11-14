@@ -1,77 +1,64 @@
+library osc;
+
 import 'dart:core';
 import 'dart:io';
 import 'package:udp/udp.dart';
 import 'message.dart';
 
+// abstract interface class Sender {
+//   Future<int> send(List<int> data, Endpoint remoteEndpoint);
+//   Stream<Datagram?> asStream({Duration? timeout});
+//   close();
+// }
+
 class Conn {
-	String remoteHost;
-	int remotePort = 10023;
-	int localPort = 10023;
-	UDP? sender;
-	Endpoint? dest;
+  late final Endpoint _dest;
+  late final UDP _sender;
 
-	Conn(this.remoteHost) {
-		if (!initDest()) {
-			stdout.write("unable to make remote endpoint");
-		}
-	}
+  Conn({required Endpoint dest, required UDP sender})
+      : _dest = dest,
+        _sender = sender;
 
-	bool initDest() {
-		try {
-			dest = Endpoint.unicast(InternetAddress(remoteHost), port: Port(remotePort));
-		} catch(e) {
-			return false;
-		}
-		return true;
-	}
+  factory Conn.withUDP({required Endpoint dest, required UDP sender}) {
+    return Conn(dest: dest, sender: sender);
+  }
 
-	Future<bool> initSender(int port) async {
-		// Close sender if one is already open
-		try {
-			sender!.close();
-		} catch(e) {}
+  static Future<Conn> initUDP(
+      {required remoteHost, remotePort = 10023, localPort = 10023}) async {
+    final dest =
+        Endpoint.unicast(InternetAddress(remoteHost), port: Port(remotePort));
+    final sender = await UDP.bind(Endpoint.any(port: Port(localPort)));
 
-		if (port < 0 || port > 65535) {
-			return false; // invalid port number
-		}
+    return Conn.withUDP(dest: dest, sender: sender);
+  }
 
-		// Assign sender
-		try {
-			localPort = port;
-			sender = await UDP.bind(Endpoint.any(port: Port(localPort)));
-		} catch(e) {
-			return false;
-		}
-		return true;
-	}
+  get sender => _sender;
 
-	Future<bool> send(Message message) async {
-		// Make the packet from the message
-		message.makePacket();
-		// Send the data
-		try {
-			final dataLength = await sender!.send(message.packet, dest!);
-			if (dataLength < 1) {
-				return false;
-			}
-		} catch(e) {
-			return false;
-		}
-		return true;
-	}
+  Stream<Datagram?> receive(Duration timeout) {
+    try {
+      return _sender.asStream(timeout: timeout);
+    } catch (e) {
+      print("receive: $e");
+      rethrow;
+    }
+  }
 
-	Future<(Message, bool)> receive(Duration timeout) async {
-		var msg = Message("");
-		bool ok = false;
-		try {
-		sender!.asStream(timeout: timeout).listen((datagram) {
-			msg.packet = datagram!.data;
-			ok = true;
-		});
-		} catch(e) {
-			return (msg, ok);
-		}
-  	    await Future.delayed(timeout);
-		return (msg, ok);
-	}
+  void close() {
+    _sender.close();
+  }
+
+  Future send(Message message) async {
+    // Make the packet from the message
+    message.makePacket();
+
+    // Send the data
+    try {
+      final dataLength = await _sender.send(message.packet, _dest);
+      print("dataLength: $dataLength");
+      if (dataLength == 0) throw Error.safeToString("too short");
+    } catch (e) {
+      print("send: $e");
+      rethrow;
+    }
+  }
 }
