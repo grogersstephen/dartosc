@@ -48,7 +48,6 @@ class Conn {
 
   Future<int> send(Message message) async {
     // Make the packet from the message
-    message.makePacket();
 
     // Send the data
     try {

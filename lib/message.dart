@@ -2,22 +2,17 @@ import 'dart:typed_data';
 import 'package:typed_data/typed_buffers.dart';
 
 class Message {
-  Uint8List _packet;
   String _address;
   String _tags;
-  List<dynamic> _arguments;
+  final List<dynamic> _arguments;
 
   Message([address = ""])
-      : _packet = Uint8List(0),
-        _address = address,
+      : _address = address,
         _tags = "",
-        _arguments = <dynamic>[] {
-    _packet = _makePacket();
-  }
+        _arguments = <dynamic>[];
 
   Message.fromPacket(Uint8List packet)
-      : _packet = packet,
-        _address = "",
+      : _address = "",
         _tags = "",
         _arguments = <dynamic>[] {
     _parse();
@@ -31,7 +26,6 @@ class Message {
   static Uint8List tagAllowedCharacters =
       Uint8List.fromList([102, 105, 115]); // fis
 
-  Uint8List get packet => _packet;
   String get address => _address;
   String get tags => _tags;
   List<dynamic> get arguments => _arguments;
@@ -44,9 +38,7 @@ class Message {
     _address = address;
   }
 
-  set packet(Uint8List packet) {
-    _packet = packet;
-  }
+  Uint8List get packet => _makePacket();
 
   set tags(String tags) {
     // tags will be a string of 'i', 'f', and 's' representing the osc arguments which follow
@@ -93,25 +85,22 @@ class Message {
     _arguments.add(value);
   }
 
-  void makePacket() {
-    packet = _makePacket();
-  }
-
   Uint8List _makePacket() {
     /// Make the packet from the given osc address, tags, and arguments
-    var b = BytesBuilder();
+    var b = BytesBuilder()
 
-    // Append the appropriate zero bytes to the osc address
-    //     before writing it to the buffer
-    b.add(Uint8List.fromList(appendZeroBytes(address).codeUnits));
+      // Append the appropriate zero bytes to the osc address
+      //     before writing it to the buffer
+      ..add(Uint8List.fromList(appendZeroBytes(address).codeUnits))
 
-    // Prepend a comma to the osc tags
-    //    and append the appropriate count of zero bytes
-    //    before writing them to the buffer
-    b.add(Uint8List.fromList(appendZeroBytes(",$tags").codeUnits));
+      // Prepend a comma to the osc tags
+      //    and append the appropriate count of zero bytes
+      //    before writing them to the buffer
+      ..add(Uint8List.fromList(appendZeroBytes(",$tags").codeUnits))
 
-    // Encode the arguments before writing them to the buffer
-    b.add(encodeArguments());
+      // Encode the arguments before writing them to the buffer
+      ..add(encodeArguments());
+
     return b.toBytes();
   }
 
@@ -126,8 +115,9 @@ class Message {
     }
 
     // If there are no zero bytes, throw error
-    if (!packetB.contains(0))
+    if (!packetB.contains(0)) {
       throw Exception("osc address not terminated by zero byte");
+    }
 
     // The osc address will be the part leading the first zero byte
     final String addressToWrite =
@@ -163,8 +153,9 @@ class Message {
     packetB.removeAt(0);
 
     // If there are no zero bytes, throw error
-    if (!packetB.contains(0))
+    if (!packetB.contains(0)) {
       throw Exception("osc address not terminated by zero byte");
+    }
 
     // the tags will be the portion before the first zero byte
     final String tagsToWrite =
