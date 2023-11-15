@@ -15,7 +15,7 @@ class Message {
       : _address = "",
         _tags = "",
         _arguments = <dynamic>[] {
-    _parse();
+    _parse(packet);
   }
 
   // List of characters not allowed in an osc address
@@ -104,13 +104,16 @@ class Message {
     return b.toBytes();
   }
 
-  void _parse() {
+  void _parse(Uint8List packet) {
     // Clone to a new packet to work with it
     Uint8Buffer packetB = Uint8Buffer(0);
     packetB.addAll(packet);
 
+    print("packet b: ${packetB.toString()}");
+    print(
+        "${packetB.first != '/'.codeUnits[0]}, ${packetB.first}, ${'/'.codeUnits[0]}");
     //     the osc message must begin with '/'
-    if (packetB.first != '/'.codeUnitAt(0)) {
+    if (packetB.first != '/'.codeUnits[0]) {
       throw Exception("osc address must begin with '/'");
     }
 

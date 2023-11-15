@@ -29,26 +29,21 @@ class Conn {
 
   Future<Message> receive(Duration timeout) async {
     // Create a disposable receiver using the same port as the sender's port
-    final receiver = await UDP.bind(Endpoint.any(port: sender.local.port));
-    var msg = Message();
     try {
-      await for (final event in receiver.asStream(timeout: timeout)) {
+      await for (final event in _sender.asStream(timeout: timeout)) {
         var data = event?.data ?? Uint8List(0);
-        if (data.isEmpty) throw Exception("empty packet");
-        msg = Message.fromPacket(data);
-        break; // once data is received, break out of the loop
+
+        print(String.fromCharCodes(data));
+        return Message.fromPacket(data);
       }
     } catch (e) {
       rethrow;
     }
-    // Close the receiver
-    receiver.close();
-    return msg;
+
+    throw Exception("empty packet");
   }
 
   Future<int> send(Message message) async {
-    // Make the packet from the message
-
     // Send the data
     try {
       return await _sender.send(message.packet, _dest);
