@@ -1,9 +1,7 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:osc/message.dart';
 import 'package:osc/osc.dart';
-import 'package:udp/udp.dart';
 
 void main() async {
   // var conn = await UDP.bind(Endpoint.any(port: Port(65000)));
@@ -19,7 +17,7 @@ void main() async {
     // Uint8List.fromList(val!.codeUnits)
     final i = await conn.send(Message(val));
     print('bytes written: $i');
-    final resp = await conn.receive(Duration(seconds: 30));
+    final resp = await conn.receive();
     print('resp: $resp');
   }
 }

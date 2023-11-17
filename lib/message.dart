@@ -109,11 +109,8 @@ class Message {
     Uint8Buffer packetB = Uint8Buffer(0);
     packetB.addAll(packet);
 
-    print("packet b: ${packetB.toString()}");
-    print(
-        "${packetB.first != '/'.codeUnits[0]}, ${packetB.first}, ${'/'.codeUnits[0]}");
     //     the osc message must begin with '/'
-    if (packetB.first != '/'.codeUnits[0]) {
+    if (packetB.first != '/'.codeUnitAt(0)) {
       throw Exception("osc address must begin with '/'");
     }
 

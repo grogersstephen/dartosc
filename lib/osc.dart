@@ -27,20 +27,16 @@ class Conn {
   get sender => _sender;
   get dest => _dest;
 
-  Future<Message> receive(Duration timeout) async {
-    // Create a disposable receiver using the same port as the sender's port
+  Future<Message> receive({Duration? timeout}) async {
+    // Create a possibly disposable receiver using the same port as the sender's port
+    // if no timeout is sent it wont close.
     try {
-      await for (final event in _sender.asStream(timeout: timeout)) {
-        var data = event?.data ?? Uint8List(0);
-
-        print(String.fromCharCodes(data));
-        return Message.fromPacket(data);
-      }
+      final event = await _sender.asStream(timeout: timeout).first;
+      var data = event?.data ?? Uint8List(0);
+      return Message.fromPacket(data);
     } catch (e) {
       rethrow;
     }
-
-    throw Exception("empty packet");
   }
 
   Future<int> send(Message message) async {

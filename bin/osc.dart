@@ -12,19 +12,19 @@ void main() async {
 
   int bytesSent = -1;
   try {
-	  bytesSent = await conn.send(msg);
-  } catch(e) {
-	  stdout.write("could not send msg '$msg': $e");
+    bytesSent = await conn.send(msg);
+  } catch (e) {
+    stdout.write("could not send msg '$msg': $e");
   }
   stdout.write("sent $bytesSent bytes");
 
-  Message reply = await conn.receive(Duration(seconds:1));
+  Message reply = await conn.receive(timeout: Duration(seconds: 1));
 
   print("Received message:$reply");
 
   print("Received args:");
   for (final arg in reply.arguments) {
-	  print("type:${arg.runtimeType}\narg:$arg");
+    print("type:${arg.runtimeType}\narg:$arg");
   }
 
   conn.sender.close();
