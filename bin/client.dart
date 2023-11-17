@@ -11,11 +11,8 @@ void main() async {
   late SendPort sendPort;
   // The first message from the spawned isolate is a SendPort. This port is
   // used to communicate with the spawned isolate.
-  try {
-    sendPort = await p.first;
-  } catch (e) {
-    print("try to send the first send port: $e");
-  }
+
+  sendPort = await p.first;
 
   var conn = await Conn.initUDP(
       remoteHost: "127.0.0.1", remotePort: 65002, localPort: 65000);
