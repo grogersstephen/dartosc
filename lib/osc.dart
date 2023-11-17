@@ -49,6 +49,8 @@ class Conn {
   }
 
   void close() {
-    _sender.close();
+    if (!_sender.closed) {
+      _sender.close();
+    }
   }
 }
