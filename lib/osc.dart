@@ -1,5 +1,6 @@
 library osc;
 
+import 'dart:async';
 import 'dart:core';
 import 'dart:io';
 import 'package:udp/udp.dart';
@@ -9,6 +10,7 @@ import 'dart:typed_data';
 class Conn {
   final Endpoint _dest;
   final UDP _sender;
+  final StreamController<Message> _streamController = StreamController();
 
   Conn({required Endpoint dest, required UDP sender})
       : _dest = dest,
@@ -21,7 +23,16 @@ class Conn {
     final dest =
         Endpoint.unicast(InternetAddress(remoteHost), port: Port(remotePort));
     final sender = await UDP.bind(Endpoint.any(port: Port(localPort)));
-    return Conn(dest: dest, sender: sender);
+    final conn = Conn(dest: dest, sender: sender);
+
+// stream stuff....
+    final messages = sender
+        .asStream()
+        .map((event) => Message.fromPacket(event?.data ?? Uint8List(0)));
+
+    conn._streamController.addStream(messages);
+
+    return conn;
   }
 
   get sender => _sender;
@@ -33,10 +44,15 @@ class Conn {
     try {
       final event = await _sender.asStream(timeout: timeout).first;
       var data = event?.data ?? Uint8List(0);
+
       return Message.fromPacket(data);
     } catch (e) {
       rethrow;
     }
+  }
+
+  StreamSubscription<Message> listen() {
+    return _streamController.stream.listen(null);
   }
 
   Future<int> send(Message message) async {
