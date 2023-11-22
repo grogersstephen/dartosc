@@ -7,7 +7,17 @@ import 'package:udp/udp.dart';
 import 'message.dart';
 import 'dart:typed_data';
 
-class Conn {
+abstract interface class IConn {
+  Future<Message> receive({Duration? timeout});
+
+  Future<int> send(Message message);
+
+  StreamSubscription<Message> listen();
+
+  void close();
+}
+
+class Conn implements IConn {
   final Endpoint _dest;
   final UDP _sender;
   final StreamController<Message> _streamController = StreamController();
@@ -38,6 +48,7 @@ class Conn {
   get sender => _sender;
   get dest => _dest;
 
+  @override
   Future<Message> receive({Duration? timeout}) async {
     // Create a possibly disposable receiver using the same port as the sender's port
     // if no timeout is sent it wont close.
@@ -51,10 +62,12 @@ class Conn {
     }
   }
 
+  @override
   StreamSubscription<Message> listen() {
     return _streamController.stream.listen(null);
   }
 
+  @override
   Future<int> send(Message message) async {
     // Send the data
     try {
@@ -64,6 +77,7 @@ class Conn {
     }
   }
 
+  @override
   void close() {
     if (!_sender.closed) {
       _sender.close();
