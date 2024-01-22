@@ -1,5 +1,6 @@
 library osc;
 
+import 'dart:async';
 import 'dart:core';
 import 'dart:io';
 import 'package:udp/udp.dart';
@@ -26,6 +27,12 @@ class Conn {
 
   get sender => _sender;
   get dest => _dest;
+
+  Stream<Message> messageStream() {
+    return sender.asStream().map<Message>((Datagram datagram) {
+      return Message.fromPacket(datagram.data);
+    });
+  }
 
   Future<Message> receive(Duration timeout) async {
     var msg = Message();

@@ -1,16 +1,37 @@
 import 'dart:io';
 import 'package:osc/osc.dart';
 import 'package:osc/message.dart';
+import 'package:udp/udp.dart';
 
 void main() async {
   final conn = await Conn.initUDP(remoteHost: "45.56.112.149");
 
-  double level = await getLevel(conn: conn, ch: "01");
+  // double level = await getLevel(conn: conn, ch: "01");
 
-  print("\n\nGot level: $level");
+  // print("\n\nGot level: $level");
 
-  await getLevels(conn);
+  // await getLevels(conn);
+  conn.messageStream().listen((msg) {
+    print('received: $msg');
+  });
+
+  send(conn: conn, ch: "01");
+  send(conn: conn, ch: "02");
+  send(conn: conn, ch: "03");
+  send(conn: conn, ch: "04");
+  await Future.delayed(Duration(seconds: 20));
   conn.close();
+}
+
+send({required Conn conn, required String ch}) async {
+  await Future.delayed(Duration(seconds: 2));
+  final msg = Message("/ch/$ch/mix/fader");
+  try {
+    print('sending msg: $msg');
+    await conn.send(msg);
+  } catch (e) {
+    print("could not send msg '$msg': $e");
+  }
 }
 
 getLevels(Conn conn) async {
