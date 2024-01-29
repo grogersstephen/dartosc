@@ -3,7 +3,8 @@ library osc;
 import 'dart:async';
 import 'dart:core';
 import 'dart:io';
-import 'package:udp/udp.dart';
+// import 'package:udp/udp.dart';
+import 'package:dartudp/udp.dart';
 import 'message.dart';
 import 'dart:typed_data';
 
@@ -30,7 +31,12 @@ class Conn {
 
   Stream<Message> messageStream() {
     return sender.asStream().map<Message>((Datagram datagram) {
-      return Message.fromPacket(datagram.data);
+      try {
+        return Message.fromPacket(datagram.data);
+      } catch (e) {
+        // If the packet cannot be parsed as an OSC Message
+        //     do nothing; wait for next packet
+      }
     });
   }
 
