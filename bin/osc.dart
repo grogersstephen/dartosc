@@ -1,7 +1,5 @@
-import 'dart:io';
 import 'package:osc/osc.dart';
 import 'package:osc/message.dart';
-import 'package:udp/udp.dart';
 
 void main() async {
   final conn = await Conn.initUDP(remoteHost: "45.56.112.149");

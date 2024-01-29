@@ -1,6 +1,5 @@
 library osc;
 
-import 'dart:async';
 import 'dart:core';
 import 'dart:io';
 // import 'package:udp/udp.dart';
@@ -35,7 +34,8 @@ class Conn {
         return Message.fromPacket(datagram.data);
       } catch (e) {
         // If the packet cannot be parsed as an OSC Message
-        //     do nothing; wait for next packet
+        //     return empty message
+        return Message();
       }
     });
   }
