@@ -1,7 +1,8 @@
 library osc;
 
 import 'dart:core';
-import 'dart:io';
+// import 'dart:io';
+import 'package:universal_io/io.dart';
 // import 'package:udp/udp.dart';
 import 'package:dartudp/udp.dart';
 import 'message.dart';
