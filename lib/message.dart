@@ -29,6 +29,13 @@ class Message {
   String get address => _address;
   String get tags => _tags;
   List<dynamic> get arguments => _arguments;
+  List<String> get containers {
+    // An OSC container is the portion of the address between forward slashes,
+    //     /ch/01/mix/fader has 4 containers: ch, 01, mix, fader
+    // Remove the first character, which should be a forward slash
+    //     then split into containers by the forward slashes
+    return address.substring(1).split("/");
+  }
 
   set address(String address) {
     // data validation
