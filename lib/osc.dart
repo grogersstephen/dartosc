@@ -2,10 +2,10 @@ library osc;
 
 import 'dart:core';
 import 'package:universal_io/io.dart';
-// import 'package:udp/udp.dart';
 import 'package:dartudp/udp.dart';
 import 'message.dart';
 import 'dart:typed_data';
+import './util.dart';
 
 class Conn {
   final Endpoint _dest;
@@ -16,9 +16,20 @@ class Conn {
         _sender = sender;
 
   static Future<Conn> initUDP(
-      {required remoteHost,
-      int remotePort = 10023,
-      int localPort = 10023}) async {
+      {required String remoteHost,
+      required int remotePort,
+      required int localPort}) async {
+    // Data validation
+    if (!isValidIPAddress(remoteHost)) {
+      throw Exception("invalid IPv4 address for remoteHost");
+    }
+    if (!isValidPortNumber(remotePort)) {
+      throw Exception("invalid port number for remotePort");
+    }
+    if (!isValidPortNumber(localPort)) {
+      throw Exception("invalid port number for localPort");
+    }
+
     final dest =
         Endpoint.unicast(InternetAddress(remoteHost), port: Port(remotePort));
     final sender = await UDP.bind(Endpoint.any(port: Port(localPort)));
