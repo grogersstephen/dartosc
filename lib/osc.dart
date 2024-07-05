@@ -12,7 +12,7 @@ class Conn {
   final InternetAddress _server;
   final int _serverPort;
   late final RawDatagramSocket _client;
-  final connectionMade = Completer();
+  final _connectionCompleter = Completer<bool>();
 
   Conn(
       {required InternetAddress serverAddr,
@@ -21,9 +21,9 @@ class Conn {
       : _server = serverAddr,
         _serverPort = serverPort {
     bindClient(clientPort).then((val) {
-      connectionMade.complete();
+      _connectionCompleter.complete(true);
     }).catchError((e) {
-      throw Exception("cannot bind client");
+      _connectionCompleter.complete(false);
     });
   }
 
@@ -44,6 +44,7 @@ class Conn {
   get client => _client;
   get server => _server;
   get serverPort => _serverPort;
+  get connectionMade => _connectionCompleter.future;
 
   // Connection closed?
   bool _closed = false;
