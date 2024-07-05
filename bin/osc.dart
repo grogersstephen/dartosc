@@ -2,7 +2,8 @@ import 'package:osc/osc.dart';
 import 'package:osc/message.dart';
 
 void main() async {
-  final conn = await Conn.initUDP(remoteHost: "45.56.112.149");
+  final conn = Conn.init(
+      remoteHost: "45.56.112.149", remotePort: 10023, localPort: 10023);
 
   // double level = await getLevel(conn: conn, ch: "01");
 
@@ -34,10 +35,11 @@ send({required Conn conn, required String ch}) async {
 
 getLevels(Conn conn) async {
   for (int i = 1; i < 10; i++) {
-    await getLevel(conn: conn, ch: "0$i");
+    // await getLevel(conn: conn, ch: "0$i");
   }
 }
 
+/*
 Future<double> getLevel({required Conn conn, required String ch}) async {
   final msg = Message("/ch/$ch/mix/fader");
   try {
@@ -52,9 +54,10 @@ Future<double> getLevel({required Conn conn, required String ch}) async {
 
   print("Received args:");
   for (final arg in reply.arguments) {
-    print("type: ${arg.runtimeType}");
-    print("arg: $arg");
+  print("type: ${arg.runtimeType}");
+  print("arg: $arg");
   }
 
   return reply.arguments[0];
 }
+*/

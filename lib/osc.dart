@@ -1,9 +1,9 @@
 library osc;
 
 import 'dart:core';
+import 'dart:io';
 import 'package:universal_io/io.dart';
 import 'message.dart';
-import 'dart:typed_data';
 import 'dart:collection';
 
 import 'dart:async';
