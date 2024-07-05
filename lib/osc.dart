@@ -2,47 +2,86 @@ library osc;
 
 import 'dart:core';
 import 'package:universal_io/io.dart';
-import 'package:dartudp/udp.dart';
 import 'message.dart';
 import 'dart:typed_data';
-import './util.dart';
+import 'dart:collection';
+
+import 'dart:async';
 
 class Conn {
-  final Endpoint _dest;
-  final UDP _sender;
+  final InternetAddress _server;
+  final int _serverPort;
+  late final RawDatagramSocket _client;
 
-  Conn({required Endpoint dest, required UDP sender})
-      : _dest = dest,
-        _sender = sender;
-
-  static Future<Conn> initUDP(
-      {required String remoteHost,
-      required int remotePort,
-      required int localPort}) async {
-    // Data validation
-    if (!isValidIPAddress(remoteHost)) {
-      throw Exception("invalid IPv4 address for remoteHost");
-    }
-    if (!isValidPortNumber(remotePort)) {
-      throw Exception("invalid port number for remotePort");
-    }
-    if (!isValidPortNumber(localPort)) {
-      throw Exception("invalid port number for localPort");
-    }
-
-    final dest =
-        Endpoint.unicast(InternetAddress(remoteHost), port: Port(remotePort));
-    final sender = await UDP.bind(Endpoint.any(port: Port(localPort)));
-    return Conn(dest: dest, sender: sender);
+  Conn(
+      {required InternetAddress serverAddr,
+      required int serverPort,
+      int clientPort = 0})
+      : _server = serverAddr,
+        _serverPort = serverPort {
+    bindClient(clientPort).catchError((e) {
+      throw Exception("cannot bind client");
+    });
   }
 
-  get sender => _sender;
-  get dest => _dest;
+  // redirecting ctor
+  Conn.init(
+      {required String remoteHost,
+      required int remotePort,
+      required int localPort})
+      : this(
+            serverAddr:
+                InternetAddress(remoteHost, type: InternetAddressType.IPv4),
+            serverPort: remotePort);
+
+  bindClient(int localPort) async {
+    _client = await RawDatagramSocket.bind(InternetAddress.anyIPv4, localPort);
+  }
+
+  get client => _client;
+  get server => _server;
+  get serverPort => _serverPort;
+
+  // Connection closed?
+  bool _closed = false;
+
+  // Reference to the UDP instance broadcast stream
+  Stream<Datagram?>? _udpBroadcastStream;
+  // Reference to the socket broadcast stream
+  Stream? _socketBroadcastStream;
+  // Reference to the internal stream controller
+  StreamController? _streamController;
+  // Stores the set of internal stream subscriptions
+  final HashSet<StreamSubscription> _streamSubscriptions =
+      HashSet<StreamSubscription>();
 
   Stream<Message> messageStream() {
-    return sender.asStream().map<Message>((Datagram datagram) {
+    if (_closed) throw Exception("connection closed");
+
+    _streamController ??= StreamController<Datagram>();
+    _udpBroadcastStream ??= (_streamController as StreamController<Datagram?>)
+        .stream
+        .asBroadcastStream();
+
+    if (_socketBroadcastStream == null) {
+      _socketBroadcastStream = client.asBroadcastStream();
+
+      var streamSubscription = _socketBroadcastStream!.listen((event) {
+        if (event == RawSocketEvent.read) {
+          (_streamController as StreamController<Datagram?>)
+              .add(client.receive());
+        }
+      });
+
+      if (!_streamSubscriptions.contains(streamSubscription)) {
+        _streamSubscriptions.add(streamSubscription);
+      }
+    }
+
+    return _udpBroadcastStream!.map<Message>((Datagram? datagram) {
       try {
-        return Message.fromPacket(datagram.data);
+        final data = datagram!.data;
+        return Message.fromPacket(data);
       } catch (e) {
         // If the packet cannot be parsed as an OSC Message
         //     return empty message
@@ -51,31 +90,13 @@ class Conn {
     });
   }
 
-  Future<Message> receive(Duration timeout) async {
-    var msg = Message();
-    try {
-      await for (final event in sender.asStream(timeout: timeout)) {
-        var data = event?.data ?? Uint8List(0);
-        if (data.isEmpty) throw Exception("empty packet");
-        msg = Message.fromPacket(data);
-        break; // once data is received, break out of the loop
-      }
-    } catch (e) {
-      rethrow;
-    }
-    return msg;
-  }
-
   Future<int> send(Message message) async {
-    // Make the packet from the message
+    if (_closed) return -1;
 
-    // Send the data
-    try {
-      return await _sender.send(message.packet, _dest);
-    } catch (e) {
-      rethrow;
-    }
+    return Future.microtask(() async {
+      return client.send(message.packet, server.address, serverPort);
+    });
   }
 
-  close() => _sender.close();
+  close() => client.close();
 }
