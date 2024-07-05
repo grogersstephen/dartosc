@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:universal_io/io.dart';
 import 'message.dart';
 import 'dart:collection';
+import './util.dart';
 
 import 'dart:async';
 
@@ -27,15 +28,23 @@ class Conn {
     });
   }
 
-  // redirecting ctor
-  Conn.init(
+  factory Conn.init(
       {required String remoteHost,
       required int remotePort,
-      required int localPort})
-      : this(
-            serverAddr:
-                InternetAddress(remoteHost, type: InternetAddressType.IPv4),
-            serverPort: remotePort);
+      required int localPort}) {
+    if (!isValidPortNumber(remotePort)) {
+      throw Exception("invalid port number for remotePort: $remotePort");
+    }
+    if (!isValidPortNumber(localPort)) {
+      throw Exception("invalid port number for localPort: $localPort");
+    }
+    if (!isValidIPAddress(remoteHost)) {
+      throw Exception("invalid ip address for remoteHost: $remoteHost");
+    }
+    return Conn(
+        serverAddr: InternetAddress(remoteHost, type: InternetAddressType.IPv4),
+        serverPort: remotePort);
+  }
 
   bindClient(int localPort) async {
     _client = await RawDatagramSocket.bind(InternetAddress.anyIPv4, localPort);
