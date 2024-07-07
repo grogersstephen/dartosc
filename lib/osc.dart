@@ -10,19 +10,19 @@ import './util.dart';
 import 'dart:async';
 
 class Conn {
-  final InternetAddress _server;
-  final int _serverPort;
+  final Endpoint _server;
   late final RawDatagramSocket _client;
   final _connectionCompleter = Completer<bool>();
+  final Message? checkConnectionMessage;
 
   Conn(
       {required InternetAddress serverAddr,
       required int serverPort,
-      int clientPort = 0})
-      : _server = serverAddr,
-        _serverPort = serverPort {
-    bindClient(clientPort).then((val) {
-      _connectionCompleter.complete(true);
+      int clientPort = 0,
+      this.checkConnectionMessage})
+      : _server = Endpoint(serverAddr, serverPort) {
+    connect(clientPort).then((val) {
+      _connectionCompleter.complete(val);
     }).catchError((e) {
       _connectionCompleter.complete(false);
     });
@@ -31,7 +31,8 @@ class Conn {
   factory Conn.init(
       {required String remoteHost,
       required int remotePort,
-      required int localPort}) {
+      required int localPort,
+      checkConnectionMessage}) {
     if (!isValidPortNumber(remotePort)) {
       throw Exception("invalid port number for remotePort: $remotePort");
     }
@@ -43,16 +44,57 @@ class Conn {
     }
     return Conn(
         serverAddr: InternetAddress(remoteHost, type: InternetAddressType.IPv4),
-        serverPort: remotePort);
+        serverPort: remotePort,
+        checkConnectionMessage: checkConnectionMessage);
   }
 
-  bindClient(int localPort) async {
-    _client = await RawDatagramSocket.bind(InternetAddress.anyIPv4, localPort);
+  Future<bool> connect(int localPort) async {
+    Exception? bindException;
+    await RawDatagramSocket.bind(InternetAddress.anyIPv4, localPort)
+        .then((socket) {
+      _client = socket;
+    }).catchError((e) {
+      bindException = e;
+    });
+    // if the bind method failed, return false
+    if (bindException != null) {
+      return false;
+    }
+    // if there is no checkConnectionMessage provided, return true
+    if (checkConnectionMessage == null) {
+      return true;
+    }
+    // send the message
+    final reply = await inquire(checkConnectionMessage!);
+    // if no reply, return false
+    if (reply == null) {
+      return false;
+    }
+    // if any reply, return true
+    return true;
+  }
+
+  Future<Message?> inquire(Message message,
+      {Duration timeout = const Duration(seconds: 3)}) async {
+    final reply = Completer<Message?>();
+    final subscription = messageStream().listen((message) {
+      reply.complete(message);
+    });
+    final timer = Timer(timeout, () {
+      reply.complete();
+    });
+    await send(message).onError((e, _) {
+      reply.complete();
+      return -1;
+    });
+    final result = await reply.future;
+    timer.cancel(); // calling cancel more than once is allowed
+    subscription.cancel(); // calling cancel more than once is allowed
+    return result;
   }
 
   get client => _client;
   get server => _server;
-  get serverPort => _serverPort;
   get connectionMade => _connectionCompleter.future;
 
   // Connection closed?
@@ -107,9 +149,22 @@ class Conn {
     if (_closed) return -1;
 
     return Future.microtask(() async {
-      return client.send(message.packet, server.address, serverPort);
+      return client.send(message.packet, server.address, server.port);
     });
   }
 
-  close() => client.close();
+  Future<Message?> receive() async {
+    final datagram = client.receive();
+    try {
+      final data = datagram!.data;
+      return Message.fromPacket(data);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  close() {
+    client.close();
+    _closed = true;
+  }
 }

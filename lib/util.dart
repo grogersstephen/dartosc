@@ -1,4 +1,23 @@
-// data validation
+import 'dart:io';
+
+class Endpoint {
+  final InternetAddress _address;
+  final int _port;
+
+  Endpoint(InternetAddress address, int port)
+      : _address = address,
+        _port = isValidPortNumber(port)
+            ? port
+            : throw Exception("invalid port number");
+
+  get address => _address;
+  get port => _port;
+
+  @override
+  String toString() {
+    return "$address:$port";
+  }
+}
 
 bool isValidPortNumber(int val) {
   if (val >= 0 && val <= 65535) {
