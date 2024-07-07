@@ -31,7 +31,7 @@ class Conn {
   factory Conn.init(
       {required String remoteHost,
       required int remotePort,
-      required int localPort,
+      int localPort = 0,
       checkConnectionMessage}) {
     if (!isValidPortNumber(remotePort)) {
       throw Exception("invalid port number for remotePort: $remotePort");
@@ -45,6 +45,7 @@ class Conn {
     return Conn(
         serverAddr: InternetAddress(remoteHost, type: InternetAddressType.IPv4),
         serverPort: remotePort,
+        clientPort: localPort,
         checkConnectionMessage: checkConnectionMessage);
   }
 
