@@ -141,7 +141,7 @@ class Conn {
       } catch (e) {
         // If the packet cannot be parsed as an OSC Message
         //     return empty message
-        return Message();
+        return Message("");
       }
     });
   }

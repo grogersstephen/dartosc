@@ -1,7 +1,6 @@
 import 'package:osc/osc.dart';
 import 'package:osc/message.dart';
 import 'package:logger/logger.dart';
-import 'dart:async';
 
 final logger = Logger(printer: PrettyPrinter(), filter: ProductionFilter());
 
@@ -15,17 +14,17 @@ void main() async {
 
   print("connection made?: ${await conn.connectionMade}");
 
-  final msgs = [
-    "/status",
-    "/info",
-    "/ch/01/mix/fader",
-    "/ch/01/on",
+  final msgs = <Message>[
+    Message("/status"),
+    Message("/info"),
+    Message("/ch/02/mix/fader", [OSCFloat(0.5)]),
   ];
 
   for (final msg in msgs) {
-    var request = Message(msg);
-    var reply = await conn.inquire(request);
-    print("$request: $reply");
+    print("sending message: $msg");
+    print("bytes: ${msg.packet}");
+    var reply = await conn.inquire(msg);
+    print("receiving reply: $reply");
   }
 
   print('closing connection');

@@ -17,6 +17,7 @@ dependencies:
       url: https://github.com/grogersstephen/dartudp.git
       ref: main
   logger: ^2.3.0
+  path: ^1.9.1
   # path: ^1.8.0
 
 dev_dependencies:
