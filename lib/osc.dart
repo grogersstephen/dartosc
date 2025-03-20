@@ -1,38 +1,31 @@
 library osc;
 
+import 'dart:async';
 import 'dart:core';
 import 'dart:io';
 import 'package:universal_io/io.dart';
 import 'message.dart';
-import 'dart:collection';
 import './util.dart';
-
-import 'dart:async';
 
 class Conn {
   final Endpoint _server;
   late final RawDatagramSocket _client;
-  final _connectionCompleter = Completer<bool>();
-  final Message? checkConnectionMessage;
+  bool _connected = false;
+  late final Stream<Message?> _messageStream;
 
-  Conn(
-      {required InternetAddress serverAddr,
-      required int serverPort,
-      int clientPort = 0,
-      this.checkConnectionMessage})
-      : _server = Endpoint(serverAddr, serverPort) {
-    connect(clientPort).then((val) {
-      _connectionCompleter.complete(val);
-    }).catchError((e) {
-      _connectionCompleter.complete(false);
-    });
-  }
+  Conn._({required InternetAddress serverAddr, required int serverPort})
+      : _server = Endpoint(serverAddr, serverPort);
 
-  factory Conn.init(
+  InternetAddress get remoteAddress => _server.address;
+  int get remotePort => _server.port;
+  InternetAddress get localAddress => _client.address;
+  int get localPort => _client.port;
+  Stream<Message?> get messageStream => _messageStream;
+
+  static Future<Conn> init(
       {required String remoteHost,
       required int remotePort,
-      int localPort = 0,
-      checkConnectionMessage}) {
+      int localPort = 0}) async {
     if (!isValidPortNumber(remotePort)) {
       throw Exception("invalid port number for remotePort: $remotePort");
     }
@@ -42,130 +35,70 @@ class Conn {
     if (!isValidIPAddress(remoteHost)) {
       throw Exception("invalid ip address for remoteHost: $remoteHost");
     }
-    return Conn(
+    final c = Conn._(
         serverAddr: InternetAddress(remoteHost, type: InternetAddressType.IPv4),
-        serverPort: remotePort,
-        clientPort: localPort,
-        checkConnectionMessage: checkConnectionMessage);
+        serverPort: remotePort);
+    await c._connect(localPort);
+    return c;
   }
 
-  Future<bool> connect(int localPort) async {
-    Exception? bindException;
-    await RawDatagramSocket.bind(InternetAddress.anyIPv4, localPort)
-        .then((socket) {
-      _client = socket;
-    }).catchError((e) {
-      bindException = e;
-    });
-    // if the bind method failed, return false
-    if (bindException != null) {
-      return false;
-    }
-    // if there is no checkConnectionMessage provided, return true
-    if (checkConnectionMessage == null) {
-      return true;
-    }
-    // send the message
-    final reply = await inquire(checkConnectionMessage!);
-    // if no reply, return false
-    if (reply == null) {
-      return false;
-    }
-    // if any reply, return true
-    return true;
+  Future _connect(localPort) async {
+    _client = await RawDatagramSocket.bind(InternetAddress.anyIPv4, localPort);
+    _messageStream = _getMessageStream().asBroadcastStream();
+    _connected = true;
   }
 
-  Future<Message?> inquire(Message message,
-      {Duration timeout = const Duration(seconds: 3)}) async {
-    final reply = Completer<Message?>();
-    final subscription = messageStream().listen((message) {
-      reply.complete(message);
-    });
-    final timer = Timer(timeout, () {
-      reply.complete();
-    });
-    await send(message).onError((e, _) {
-      reply.complete();
-      return -1;
-    });
-    final result = await reply.future;
-    timer.cancel(); // calling cancel more than once is allowed
-    subscription.cancel(); // calling cancel more than once is allowed
-    return result;
-  }
-
-  get client => _client;
-  get server => _server;
-  get connectionMade => _connectionCompleter.future;
-
-  // Connection closed?
-  bool _closed = false;
-
-  // Reference to the UDP instance broadcast stream
-  Stream<Datagram?>? _udpBroadcastStream;
-  // Reference to the socket broadcast stream
-  Stream? _socketBroadcastStream;
-  // Reference to the internal stream controller
-  StreamController? _streamController;
-  // Stores the set of internal stream subscriptions
-  final HashSet<StreamSubscription> _streamSubscriptions =
-      HashSet<StreamSubscription>();
-
-  Stream<Message> messageStream() {
-    if (_closed) throw Exception("connection closed");
-
-    _streamController ??= StreamController<Datagram>();
-    _udpBroadcastStream ??= (_streamController as StreamController<Datagram?>)
-        .stream
-        .asBroadcastStream();
-
-    if (_socketBroadcastStream == null) {
-      _socketBroadcastStream = client.asBroadcastStream();
-
-      var streamSubscription = _socketBroadcastStream!.listen((event) {
-        if (event == RawSocketEvent.read) {
-          (_streamController as StreamController<Datagram?>)
-              .add(client.receive());
-        }
-      });
-
-      if (!_streamSubscriptions.contains(streamSubscription)) {
-        _streamSubscriptions.add(streamSubscription);
+  Stream<Message> _getMessageStream() async* {
+    await for (final event in _client) {
+      if (event != RawSocketEvent.read) {
+        continue;
       }
-    }
-
-    return _udpBroadcastStream!.map<Message>((Datagram? datagram) {
+      final Datagram? datagram = _client.receive();
+      if (datagram == null) {
+        continue;
+      }
       try {
-        final data = datagram!.data;
-        return Message.fromPacket(data);
+        yield Message.fromPacket(datagram.data);
       } catch (e) {
-        // If the packet cannot be parsed as an OSC Message
-        //     return empty message
-        return Message("");
+        continue;
       }
-    });
+    }
   }
 
-  Future<int> send(Message message) async {
-    if (_closed) return -1;
-
-    return Future.microtask(() async {
-      return client.send(message.packet, server.address, server.port);
-    });
-  }
-
-  Future<Message?> receive() async {
-    final datagram = client.receive();
+  Future<Message?> request(Message message,
+      {Duration timeout = const Duration(seconds: 3)}) async {
+    await Future.doWhile(() async {
+      return (await send(message)) == 0;
+    }).timeout(const Duration(seconds: 2));
     try {
-      final data = datagram!.data;
-      return Message.fromPacket(data);
-    } catch (e) {
+      return await _messageStream.first
+          .timeout(const Duration(milliseconds: 100));
+    } on TimeoutException catch (_) {
       return null;
     }
   }
 
+  Future<int> send(Message message) async {
+    if (!_connected) {
+      throw Exception("connection is closed");
+    }
+
+    return _client.send(message.packet, _server.address, _server.port);
+  }
+
+  Future<Message?> receive() async {
+    if (!_connected) {
+      throw Exception("connection is closed");
+    }
+    final data = _client.receive()?.data;
+    if (data == null) {
+      return null;
+    }
+    return Message.fromPacket(data);
+  }
+
   close() {
-    client.close();
-    _closed = true;
+    _client.close();
+    _connected = false;
   }
 }

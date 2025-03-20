@@ -5,25 +5,23 @@ import 'package:logger/logger.dart';
 final logger = Logger(printer: PrettyPrinter(), filter: ProductionFilter());
 
 void main() async {
-  final conn = Conn.init(
-    remoteHost: "45.56.112.149",
+  final conn = await Conn.init(
+    remoteHost: "192.168.1.176",
     remotePort: 10023,
-    localPort: 10023,
-    checkConnectionMessage: Message("/status"),
+    // localPort: 10023,
   );
-
-  print("connection made?: ${await conn.connectionMade}");
 
   final msgs = <Message>[
     Message("/status"),
     Message("/info"),
-    Message("/ch/02/mix/fader", [OSCFloat(0.5)]),
+    // Message("/ch/02/mix/fader", [OSCFloat(0.5)]),
+    Message("/ch/02/mix/fader"),
   ];
 
   for (final msg in msgs) {
     print("sending message: $msg");
     print("bytes: ${msg.packet}");
-    var reply = await conn.inquire(msg);
+    var reply = await conn.request(msg);
     print("receiving reply: $reply");
   }
 
