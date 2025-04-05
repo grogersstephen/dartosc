@@ -34,6 +34,31 @@ class OSCString extends OSCArgument {
   }
 }
 
+class OSCBlob extends OSCArgument {
+  OSCBlob._(Uint8List data) : super._(Type.b, data);
+  factory OSCBlob(Uint8List content) {
+    BytesBuilder data = BytesBuilder();
+    // Add the length of the blob
+    data.add(encodeInt32(content.length));
+    // Add the content of the blob
+    data.add(content);
+    // Append zero bytes
+    int zeros = zerosToAdd(data.length);
+    if (zeros == 4) {
+      // special case for blobs
+      zeros = 0;
+    }
+    data.add(List<int>.filled(zeros, 0));
+    return OSCBlob._(data.takeBytes());
+  }
+
+  int get length => decodeInt32(super.data.sublist(0, 4), endian: Endian.big);
+
+  @override
+  // The first four bytes are the length, skip them, then take the length of the data
+  Uint8List get value => super.data.sublist(4, 4 + length);
+}
+
 class Message {
   String _address;
   List<OSCArgument> _arguments;
@@ -215,7 +240,23 @@ class Message {
           packetB.removeRange(0, stringLength);
           break;
         case Type.b:
-          throw UnimplementedError("have not yet implemented blobs");
+          // the next four bytes are the length of the blob
+          final blobContentLength =
+              decodeInt32(Uint8List.fromList(packetB.sublist(0, 4)));
+          packetB.removeRange(0, 4);
+          int blobZeros = zerosToAdd(blobContentLength + 4);
+          if (blobZeros == 4) {
+            // special condition for blob
+            blobZeros = 0;
+          }
+          if (packetB.length < (blobContentLength + blobZeros)) {
+            throw Exception("blob length is not correct");
+          }
+          final Uint8List blobContent =
+              Uint8List.fromList(packetB.sublist(0, blobContentLength));
+          packetB.removeRange(0, (blobContentLength + blobZeros));
+
+          arguments.add(blobContent);
       }
     }
     return Message(
@@ -225,7 +266,7 @@ class Message {
             Type.i => OSCInt(arguments[i] as int),
             Type.f => OSCFloat(arguments[i] as double),
             Type.s => OSCString(arguments[i] as String),
-            Type.b => throw UnimplementedError(),
+            Type.b => OSCBlob(arguments[i] as Uint8List),
           };
         }));
   }
@@ -254,13 +295,13 @@ double decodeFloat32(Uint8List data) {
   return ByteData.sublistView(data).getFloat32(0);
 }
 
-int decodeInt32(Uint8List data) {
-  return ByteData.sublistView(data).getInt32(0);
+int decodeInt32(Uint8List data, {Endian endian = Endian.big}) {
+  return ByteData.sublistView(data).getInt32(0, endian);
 }
 
-Uint8List encodeInt32(int value) {
+Uint8List encodeInt32(int value, {Endian endian = Endian.big}) {
   var bdata = ByteData(4);
-  bdata.setInt32(0, value);
+  bdata.setInt32(0, value, endian);
   return bdata.buffer.asUint8List(0);
 }
 
