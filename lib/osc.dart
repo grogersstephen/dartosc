@@ -50,6 +50,11 @@ class Conn {
 
   Stream<Message> _getMessageStream() async* {
     await for (final event in _client) {
+      if (event == RawSocketEvent.closed) {
+        _client.close();
+        _connected = false;
+        return;
+      }
       if (event != RawSocketEvent.read) {
         continue;
       }
@@ -67,6 +72,7 @@ class Conn {
 
   Future<Message?> request(Message message,
       {Duration timeout = const Duration(seconds: 3)}) async {
+    // this will error on timeout
     await Future.doWhile(() async {
       return (await send(message)) == 0;
     }).timeout(const Duration(seconds: 2));
