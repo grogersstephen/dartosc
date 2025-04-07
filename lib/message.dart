@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:typed_data/typed_buffers.dart';
 import 'dart:convert' show utf8;
@@ -13,15 +14,16 @@ abstract class OSCArgument {
 }
 
 class OSCInt extends OSCArgument {
-  OSCInt(int val) : super._(Type.f, encodeInt32(val));
+  OSCInt(int val) : super._(Type.i, encodeInt32(val));
   @override
   int get value => decodeInt32(data);
 }
 
 class OSCFloat extends OSCArgument {
-  OSCFloat(double val) : super._(Type.i, encodeFloat32(val));
+  OSCFloat(double val)
+      : super._(Type.f, encodeFloat32(val, endian: Endian.big));
   @override
-  double get value => decodeFloat32(data);
+  double get value => decodeFloat32(data, endian: Endian.big);
 }
 
 class OSCString extends OSCArgument {
@@ -114,18 +116,34 @@ class Message {
     return Uint8List.fromList(data);
   }
 
-  @override
-  String toString() {
-    var sb = StringBuffer();
-    for (final r in packet) {
-      if (r == 0) {
-        sb.write("~");
+  Map<String, dynamic> toJson() {
+    final List<Map<String, dynamic>> args = [];
+    for (final arg in _arguments) {
+      if (arg is OSCInt) {
+        args.add({"type": "OSCInt", "value": arg.value});
         continue;
       }
-      sb.writeCharCode(r);
+      if (arg is OSCFloat) {
+        args.add({"type": "OSCFloat", "value": arg.value});
+        continue;
+      }
+      if (arg is OSCString) {
+        args.add({"type": "OSCString", "value": arg.value});
+        continue;
+      }
+      if (arg is OSCBlob) {
+        args.add({"type": "OSCBlob", "value": arg.value});
+        continue;
+      }
     }
-    return sb.toString();
+    return {
+      "address": _address,
+      "arguments": args,
+    };
   }
+
+  @override
+  String toString() => jsonEncode(toJson());
 
   factory Message.fromPacket(Uint8List packet) {
     // Clone to a new packet to work with it
@@ -291,8 +309,8 @@ int zerosToAdd(int length) {
   return 4 - (length % 4);
 }
 
-double decodeFloat32(Uint8List data) {
-  return ByteData.sublistView(data).getFloat32(0);
+double decodeFloat32(Uint8List data, {Endian endian = Endian.big}) {
+  return ByteData.sublistView(data).getFloat32(0, endian);
 }
 
 int decodeInt32(Uint8List data, {Endian endian = Endian.big}) {
@@ -305,8 +323,8 @@ Uint8List encodeInt32(int value, {Endian endian = Endian.big}) {
   return bdata.buffer.asUint8List(0);
 }
 
-Uint8List encodeFloat32(double value) {
+Uint8List encodeFloat32(double value, {Endian endian = Endian.big}) {
   var bdata = ByteData(4);
-  bdata.setFloat32(0, value);
+  bdata.setFloat32(0, value, endian);
   return bdata.buffer.asUint8List(0);
 }

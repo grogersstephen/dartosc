@@ -84,6 +84,26 @@ class Conn {
     }
   }
 
+  Stream<Message> requestStream(Message message,
+      {bool mustMatchRootContainer = false, Duration? timeout}) async* {
+    // this will error on timeout
+    await Future.doWhile(() async {
+      return (await send(message)) == 0;
+    }).timeout(const Duration(seconds: 2));
+    final stream = _messageStream.timeout(timeout ?? const Duration(seconds: 5),
+        onTimeout: (ctl) => ctl.close());
+    await for (final reply in stream) {
+      if (reply == null) {
+        continue;
+      }
+      if (mustMatchRootContainer
+          ? reply.containers[0] == message.containers[0]
+          : true) {
+        yield reply;
+      }
+    }
+  }
+
   Future<int> send(Message message) async {
     if (!_connected) {
       throw Exception("connection is closed");
