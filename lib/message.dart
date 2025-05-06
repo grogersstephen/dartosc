@@ -88,7 +88,9 @@ class Message {
   // String get tags => _tags;
   List<OSCArgument> get arguments => _arguments;
 
-  List<String> get containers => _pathContext.split(_address);
+  /// If [path] is absolute, the root directory will be the first element in the
+  /// array.
+  List<String> get containers => _pathContext.split(_address).sublist(1);
   String get method => _pathContext.basename(_address);
 
   Uint8List get packet {
