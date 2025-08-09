@@ -79,7 +79,7 @@ packages:
       path: "."
       ref: main
       resolved-ref: "618e668ebb3b4064000b3e80b37dbe010263f7d6"
-      url: "https://github.com/grogersstephen/dartudp.git"
+      url: "git@github.com:grogersstephen/dartudp.git"
     source: git
     version: "1.0.0"
   file:

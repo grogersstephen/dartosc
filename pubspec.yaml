@@ -14,8 +14,7 @@ dependencies:
   udp: ^5.0.3
   dartudp:
     git:
-      #url: https://github.com/grogersstephen/dartudp.git
-      url: git@github.com:grogersstephen/dartudp.git
+      url: https://github.com/grogersstephen/dartudp.git
       ref: main
   logger: ^2.3.0
   path: ^1.9.1
