@@ -18,6 +18,7 @@ dependencies:
       ref: main
   logger: ^2.3.0
   path: ^1.9.1
+  args: ^2.7.0
   # path: ^1.8.0
 
 dev_dependencies:

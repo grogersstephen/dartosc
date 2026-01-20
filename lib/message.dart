@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:typed_data/typed_buffers.dart';
 import 'dart:convert' show utf8;
@@ -13,15 +14,16 @@ abstract class OSCArgument {
 }
 
 class OSCInt extends OSCArgument {
-  OSCInt(int val) : super._(Type.f, encodeInt32(val));
+  OSCInt(int val) : super._(Type.i, encodeInt32(val));
   @override
   int get value => decodeInt32(data);
 }
 
 class OSCFloat extends OSCArgument {
-  OSCFloat(double val) : super._(Type.i, encodeFloat32(val));
+  OSCFloat(double val)
+      : super._(Type.f, encodeFloat32(val, endian: Endian.big));
   @override
-  double get value => decodeFloat32(data);
+  double get value => decodeFloat32(data, endian: Endian.big);
 }
 
 class OSCString extends OSCArgument {
@@ -32,6 +34,31 @@ class OSCString extends OSCArgument {
     d.removeWhere((e) => e == 0);
     return String.fromCharCodes(d);
   }
+}
+
+class OSCBlob extends OSCArgument {
+  OSCBlob._(Uint8List data) : super._(Type.b, data);
+  factory OSCBlob(Uint8List content) {
+    BytesBuilder data = BytesBuilder();
+    // Add the length of the blob
+    data.add(encodeInt32(content.length));
+    // Add the content of the blob
+    data.add(content);
+    // Append zero bytes
+    int zeros = zerosToAdd(data.length);
+    if (zeros == 4) {
+      // special case for blobs
+      zeros = 0;
+    }
+    data.add(List<int>.filled(zeros, 0));
+    return OSCBlob._(data.takeBytes());
+  }
+
+  int get length => decodeInt32(super.data.sublist(0, 4), endian: Endian.big);
+
+  @override
+  // The first four bytes are the length, skip them, then take the length of the data
+  Uint8List get value => super.data.sublist(4, 4 + length);
 }
 
 class Message {
@@ -61,7 +88,9 @@ class Message {
   // String get tags => _tags;
   List<OSCArgument> get arguments => _arguments;
 
-  List<String> get containers => _pathContext.split(_address);
+  /// If [path] is absolute, the root directory will be the first element in the
+  /// array.
+  List<String> get containers => _pathContext.split(_address).sublist(1);
   String get method => _pathContext.basename(_address);
 
   Uint8List get packet {
@@ -89,18 +118,34 @@ class Message {
     return Uint8List.fromList(data);
   }
 
-  @override
-  String toString() {
-    var sb = StringBuffer();
-    for (final r in packet) {
-      if (r == 0) {
-        sb.write("~");
+  Map<String, dynamic> toJson() {
+    final List<Map<String, dynamic>> args = [];
+    for (final arg in _arguments) {
+      if (arg is OSCInt) {
+        args.add({"type": "OSCInt", "value": arg.value});
         continue;
       }
-      sb.writeCharCode(r);
+      if (arg is OSCFloat) {
+        args.add({"type": "OSCFloat", "value": arg.value});
+        continue;
+      }
+      if (arg is OSCString) {
+        args.add({"type": "OSCString", "value": arg.value});
+        continue;
+      }
+      if (arg is OSCBlob) {
+        args.add({"type": "OSCBlob", "value": arg.value});
+        continue;
+      }
     }
-    return sb.toString();
+    return {
+      "address": _address,
+      "arguments": args,
+    };
   }
+
+  @override
+  String toString() => jsonEncode(toJson());
 
   factory Message.fromPacket(Uint8List packet) {
     // Clone to a new packet to work with it
@@ -215,7 +260,23 @@ class Message {
           packetB.removeRange(0, stringLength);
           break;
         case Type.b:
-          throw UnimplementedError("have not yet implemented blobs");
+          // the next four bytes are the length of the blob
+          final blobContentLength =
+              decodeInt32(Uint8List.fromList(packetB.sublist(0, 4)));
+          packetB.removeRange(0, 4);
+          int blobZeros = zerosToAdd(blobContentLength + 4);
+          if (blobZeros == 4) {
+            // special condition for blob
+            blobZeros = 0;
+          }
+          if (packetB.length < (blobContentLength + blobZeros)) {
+            throw Exception("blob length is not correct");
+          }
+          final Uint8List blobContent =
+              Uint8List.fromList(packetB.sublist(0, blobContentLength));
+          packetB.removeRange(0, (blobContentLength + blobZeros));
+
+          arguments.add(blobContent);
       }
     }
     return Message(
@@ -225,7 +286,7 @@ class Message {
             Type.i => OSCInt(arguments[i] as int),
             Type.f => OSCFloat(arguments[i] as double),
             Type.s => OSCString(arguments[i] as String),
-            Type.b => throw UnimplementedError(),
+            Type.b => OSCBlob(arguments[i] as Uint8List),
           };
         }));
   }
@@ -250,22 +311,22 @@ int zerosToAdd(int length) {
   return 4 - (length % 4);
 }
 
-double decodeFloat32(Uint8List data) {
-  return ByteData.sublistView(data).getFloat32(0);
+double decodeFloat32(Uint8List data, {Endian endian = Endian.big}) {
+  return ByteData.sublistView(data).getFloat32(0, endian);
 }
 
-int decodeInt32(Uint8List data) {
-  return ByteData.sublistView(data).getInt32(0);
+int decodeInt32(Uint8List data, {Endian endian = Endian.big}) {
+  return ByteData.sublistView(data).getInt32(0, endian);
 }
 
-Uint8List encodeInt32(int value) {
+Uint8List encodeInt32(int value, {Endian endian = Endian.big}) {
   var bdata = ByteData(4);
-  bdata.setInt32(0, value);
+  bdata.setInt32(0, value, endian);
   return bdata.buffer.asUint8List(0);
 }
 
-Uint8List encodeFloat32(double value) {
+Uint8List encodeFloat32(double value, {Endian endian = Endian.big}) {
   var bdata = ByteData(4);
-  bdata.setFloat32(0, value);
+  bdata.setFloat32(0, value, endian);
   return bdata.buffer.asUint8List(0);
 }
